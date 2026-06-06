@@ -1,7 +1,21 @@
+[![GitHub Actions CI](https://github.com/elderalvesf/pgats-ci/actions/workflows/ci.yml/badge.svg)](https://github.com/elderalvesf/pgats-ci/actions/workflows/ci.yml)
 [![Code coverage badge](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://stryker-mutator.io/robo-coasters-example/reports/coverage/lcov-report/index.html)
 [![Mutation testing badge](https://img.shields.io/endpoint?style=flat&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2Fstryker-mutator%2Frobo-coasters-example%2Fmaster)](https://dashboard.stryker-mutator.io/reports/github.com/stryker-mutator/robo-coasters-example/master)
 
 # PGATS - CI
+
+## CI/CD
+
+Pipelines implementadas como parte dos exercícios da disciplina de CI/CD:
+
+| Plataforma | Arquivo | Destaques |
+|---|---|---|
+| **GitHub Actions** | `.github/workflows/ci.yml` | Lint, testes unitários (Jest), E2E (Playwright), mutation tests (Stryker) + `dorny/test-reporter` para relatórios no PR |
+| **Azure DevOps** | `azure-pipelines.yml` | Mesmos stages + `BuildQualityChecks` como quality gate de coverage |
+
+**Self-hosted runner:** `runner/docker-compose.yml` — sobe agente local via Docker, ambas as pipelines configuradas para usá-lo.
+
+---
 
 ## Pré-requisitos
 

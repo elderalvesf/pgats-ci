@@ -1,0 +1,21 @@
+services:
+  github-runner:
+    image: myoung34/github-runner:ubuntu-focal
+    container_name: pgats-ci-runner
+    restart: unless-stopped
+    environment:
+      # Obtenha o token em: repo > Settings > Actions > Runners > New self-hosted runner
+      REPO_URL: https://github.com/${GITHUB_USER}/pgats-ci
+      RUNNER_TOKEN: ${RUNNER_TOKEN}
+      RUNNER_NAME: pgats-local-runner
+      RUNNER_WORKDIR: /tmp/runner/work
+      RUNNER_SCOPE: repo
+      LABELS: self-hosted,linux,local
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner_work:/tmp/runner
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  runner_work:

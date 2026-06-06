@@ -1,0 +1,152 @@
+trigger:
+  branches:
+    include:
+      - master
+
+pr:
+  branches:
+    include:
+      - master
+
+variables:
+  NODE_VERSION: '20.x'
+
+# Pool self-hosted — agente local registrado no Azure DevOps
+# Para usar cloud runners da Microsoft, troque cada pool abaixo por:
+#   pool:
+#     vmImage: 'ubuntu-latest'
+pool:
+  name: 'pgats-local-pool'
+
+stages:
+  - stage: Validate
+    displayName: 'Build & Validate'
+    jobs:
+      - job: Lint
+        displayName: 'Lint'
+        pool:
+          name: 'pgats-local-pool'
+        steps:
+          - task: NodeTool@0
+            displayName: 'Install Node.js $(NODE_VERSION)'
+            inputs:
+              versionSpec: $(NODE_VERSION)
+
+          - script: npm ci
+            displayName: 'Install dependencies'
+
+          - script: npm run lint
+            displayName: 'Run lint (TypeScript + Prettier)'
+
+      - job: UnitTests
+        displayName: 'Unit Tests (Jest)'
+        pool:
+          name: 'pgats-local-pool'
+        steps:
+          - task: NodeTool@0
+            displayName: 'Install Node.js $(NODE_VERSION)'
+            inputs:
+              versionSpec: $(NODE_VERSION)
+
+          - script: npm ci
+            displayName: 'Install dependencies'
+
+          # Adiciona reporter cobertura ao jest via CLI para publicar no Azure DevOps
+          - script: |
+              npm test -- \
+                --coverageReporters=lcov \
+                --coverageReporters=cobertura \
+                --coverageReporters=text
+            displayName: 'Run unit tests with coverage'
+            env:
+              CI: 'true'
+
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish code coverage'
+            condition: succeededOrFailed()
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: 'reports/coverage/cobertura-coverage.xml'
+              reportDirectory: 'reports/coverage/lcov-report'
+
+          # Build Quality Checks — bloqueia pipeline se coverage ou aprovação cair
+          # Requer extensão: marketplace.visualstudio.com/items?itemName=mspremier.BuildQualityChecks
+          - task: BuildQualityChecks@9
+            displayName: 'Enforce quality gates'
+            inputs:
+              checkCoverage: true
+              coverageType: 'lines'
+              coverageThresholdType: 'absolute'
+              coverageFailOption: 'fixed'
+              coverageValue: '80'
+              checkTests: true
+              testFailOption: 'percentage'
+              testValue: '0'
+              testThresholdType: 'percentage'
+
+      - job: E2ETests
+        displayName: 'E2E Tests (Playwright)'
+        pool:
+          name: 'pgats-local-pool'
+        steps:
+          - task: NodeTool@0
+            displayName: 'Install Node.js $(NODE_VERSION)'
+            inputs:
+              versionSpec: $(NODE_VERSION)
+
+          - script: npm ci
+            displayName: 'Install dependencies'
+
+          - script: npx playwright install --with-deps chromium
+            displayName: 'Install Playwright browsers'
+
+          - script: npm run e2e
+            displayName: 'Run E2E tests'
+            env:
+              CI: 'true'
+
+          - task: PublishTestResults@2
+            displayName: 'Publish E2E test results'
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: 'results.xml'
+              testRunTitle: 'E2E Tests - Playwright (Chromium)'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Playwright report (on failure)'
+            condition: failed()
+            inputs:
+              targetPath: 'playwright-report'
+              artifact: 'playwright-report'
+              publishLocation: 'pipeline'
+
+  - stage: MutationTests
+    displayName: 'Mutation Tests (Stryker)'
+    dependsOn: Validate
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+    jobs:
+      - job: MutationTests
+        displayName: 'Stryker Mutation Tests'
+        pool:
+          name: 'pgats-local-pool'
+        timeoutInMinutes: 30
+        steps:
+          - task: NodeTool@0
+            displayName: 'Install Node.js $(NODE_VERSION)'
+            inputs:
+              versionSpec: $(NODE_VERSION)
+
+          - script: npm ci
+            displayName: 'Install dependencies'
+
+          - script: npm run test:mutation
+            displayName: 'Run mutation tests'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish mutation report'
+            condition: succeededOrFailed()
+            inputs:
+              targetPath: 'reports/mutation'
+              artifact: 'mutation-report'
+              publishLocation: 'pipeline'
